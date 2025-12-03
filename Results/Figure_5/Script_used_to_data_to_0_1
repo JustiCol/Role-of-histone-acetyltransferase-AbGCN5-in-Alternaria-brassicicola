@@ -1,0 +1,48 @@
+# Script to convert the data to binary
+
+# Set working directory to the folder containing the input file
+setwd("D:/FungiSem2/Articles/GCN5/Siliques")
+
+combine <- NULL
+
+# Number of columns must match grainesaine and graineconta (here: 5)
+blank <- t(data.frame(rep("", 5)))
+
+# Load raw dataset
+rawdata <- read.table("Gcnsilique.csv", header = TRUE, sep = ";", na.strings = "NA")
+rawdata <- rawdata[, -7]   # remove column 7
+rawdata <- na.omit(rawdata)
+head(rawdata)
+View(rawdata)
+
+# Loop through each row to generate individual seeds
+for (i in 1:nrow(rawdata)) {
+
+  repetition <- as.character(rawdata[i, 1])
+  strain     <- as.character(rawdata[i, 2])
+  plant      <- as.character(rawdata[i, 3])
+  silique    <- as.character(rawdata[i, 4])
+  GT         <- as.numeric(rawdata[i, 5])  # total grains
+  gc         <- as.numeric(rawdata[i, 6])  # contaminated grains
+  
+  gs <- GT - gc  # healthy grains
+  
+  # Create base rows for healthy and contaminated grains
+  healthy_seed <- cbind(repetition, plant, silique, strain, 0)
+  colnames(healthy_seed) <- c("rep", "plant", "silique", "strain", "state")
+  
+  contaminated_seed <- cbind(repetition, plant, silique, strain, 1)
+  colnames(contaminated_seed) <- c("rep", "plant", "silique", "strain", "state")
+  
+  # Generate multiple rows: one per grain + a blank line at the end
+  healthy_gen <- rbind(healthy_seed[rep(1:nrow(healthy_seed), each = gs), ], blank)
+  contaminated_gen <- rbind(contaminated_seed[rep(1:nrow(contaminated_seed), each = gc), ], blank)
+  
+  # Merge both lists
+  uni <- rbind(healthy_gen, contaminated_gen)
+  
+  combine <- rbind(combine, uni)
+}
+
+# Export final file
+write.table(combine, file = "Gcn5.txt", sep = "\t", quote = FALSE)
