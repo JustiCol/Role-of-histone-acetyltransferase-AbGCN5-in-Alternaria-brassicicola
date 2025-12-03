@@ -1,4 +1,4 @@
-## Role-of-histone-acetyltransferase-AbGCN5-in-Alternaria-brassicicola
+# Role of histone acetyltransferase AbGCN5 in Alternaria brassicicola
 
 This repository contains all scripts and datasets used to generate the figures and statistical analyses for the GCN5 study.
 It includes:
@@ -8,7 +8,7 @@ It includes:
 - Transcriptomic outputs generated with askoR
 - Final results used to build the figures included in the article
 
-#Citation
+## Citation
 
 If you use this code or dataset, please cite the associated article: 
 The histone acetyltransferase AbGCN5 coordinates stress tolerance, morphogenesis, and virulence in the necrotrophic fungus Alternaria brassicicola.
