@@ -1,0 +1,143 @@
+###########################################################
+# Stress assay analysis – Growth ratios under stress
+# Author: <Your name>
+# Script used for Figure X of the manuscript
+# Description:
+#   - Load stress assay data
+#   - Normalization (log + 1)
+#   - ANOVA + Tukey HSD
+#   - Compact Letter Display (CLD)
+#   - Plot boxplots + significance letters
+###########################################################
+
+#############################
+# Load libraries
+#############################
+
+packages <- c(
+  "ggplot2","ggsignif","dplyr","car","ggpubr","FSA","tidyr","dunn.test",
+  "multcompView","multcomp","rstatix","rcompanion","cowplot","agricolae",
+  "tidyverse","reshape2","readxl","emmeans","data.table","patchwork",
+  "PMCMRplus","stringr"
+)
+
+installed <- installed.packages()[, "Package"]
+to_install <- packages[!packages %in% installed]
+if(length(to_install) > 0) install.packages(to_install)
+
+lapply(packages, library, character.only = TRUE)
+
+
+#############################
+# Load data
+#############################
+
+# Adapt to your repository structure
+setwd("D:/FungiSem2/Articles/GCN5/Stress")
+
+RT <- read.table(
+  "Stress_ratios.csv",
+  header = TRUE,
+  sep = ";",
+  na.strings = "NA",
+  dec = ",",
+  strip.white = TRUE
+)
+
+#############################
+# Helper function – complete workflow for one strain
+#############################
+
+analyze_strain <- function(data, strain_name) {
+  
+  message("### Processing: ", strain_name)
+
+  # Filter and normalization
+  df <- data %>%
+    filter(Souche == strain_name, !is.na(Ratio)) %>%
+    mutate(
+      Condition = factor(Condition),
+      Normalized_Ratio = log(Ratio + 1)
+    )
+  
+  # Diagnostics: model, homoscedasticity, normality
+  model <- lm(Normalized_Ratio ~ Condition, data = df)
+  print(leveneTest(Normalized_Ratio ~ Condition, data = df))
+  print(shapiro.test(residuals(model)))
+
+  # ANOVA + Tukey
+  aov_model <- aov(Normalized_Ratio ~ Condition, data = df)
+  print(summary(aov_model))
+  tukey <- TukeyHSD(aov_model)
+
+  # Compact letters
+  cld <- multcompLetters4(aov_model, tukey)
+  cld_df <- tibble(
+    Condition = names(cld$Condition),
+    Letters = as.character(cld$Condition)
+  )
+
+  # Mean values
+  summary_df <- df %>%
+    group_by(Condition) %>%
+    summarize(Growth_ratio = mean(Ratio), .groups = "drop") %>%
+    left_join(cld_df, by = "Condition")
+
+  # Order of conditions always identical across strains
+  stress_order <- c("Sorbitol","NaCl","KCl","CaCl2","CR","CW","SDS","Caffeine","Menadione")
+  df$Condition <- factor(df$Condition, levels = stress_order)
+  summary_df$Condition <- factor(summary_df$Condition, levels = stress_order)
+
+  max_ratio <- max(df$Ratio, na.rm = TRUE)
+
+  # Plot
+  p <- ggplot(df, aes(x = Condition, y = Ratio, fill = Condition)) +
+    geom_boxplot(outlier.shape = NA) +
+    geom_jitter(width = 0.15, size = 2, alpha = 0.8, shape = 21) +
+    geom_text(
+      data = summary_df,
+      aes(label = Letters, y = max_ratio + 0.1),
+      vjust = -0.4
+    ) +
+    labs(
+      x = "",
+      y = "Growth ratio vs control",
+      title = strain_name
+    ) +
+    theme_bw() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      axis.text = element_text(size = 12)
+    ) +
+    ylim(0, max_ratio + 0.5)
+
+  return(list(
+    data = df,
+    summary = summary_df,
+    plot = p
+  ))
+}
+
+#############################
+# Run analysis on all strains
+#############################
+
+strain_list <- c("WT", "Gcn5W", "Gcn5Wc", "Gcn5G", "Gcn5Gc")
+
+results <- lapply(strain_list, function(x) analyze_strain(RT, x))
+names(results) <- strain_list
+
+#############################
+# Display plots
+#############################
+
+results$WT$plot
+results$Gcn5W$plot
+results$Gcn5Wc$plot
+results$Gcn5G$plot
+results$Gcn5Gc$plot
+
+#############################
+# Export if needed
+#############################
+# ggsave("WT_stress_plot.pdf", results$WT$plot, width = 7, height = 5)
