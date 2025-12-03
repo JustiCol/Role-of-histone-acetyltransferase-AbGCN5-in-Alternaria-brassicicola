@@ -1,0 +1,80 @@
+
+##############################################
+# Logistic Models
+##############################################
+
+### Set working directory
+setwd("D:/FungiSem2/Articles/GCN5/Siliques")
+
+
+Dataset <- read.table("Gcn5_0-1.csv", header=TRUE, sep=";", 
+                      na.strings="NA", dec=",", strip.white=TRUE)
+
+hist(Dataset$state)
+
+# Models
+model.1 <- glm(state ~ strain, family=binomial(link="logit"), data=Dataset)
+model.2 <- glm(state ~ strain + 0, family=binomial(link="logit"), data=Dataset)
+model.3 <- glm(state ~ factor(silique), family=binomial(link="logit"), data=Dataset)
+model.4 <- glm(state ~ factor(silique) + 0, family=binomial(link="logit"), data=Dataset)
+model.5 <- glm(state ~ strain + factor(silique), family=binomial(link="logit"), data=Dataset)
+model.6 <- glm(state ~ strain * factor(silique), family=binomial(link="logit"), data=Dataset)
+model.7 <- glm(state ~ strain : factor(silique) + 0, family=binomial(link="logit"), data=Dataset)
+model.8 <- glm(state ~ strain * factor(repetition), family=binomial(link="logit"), data=Dataset)
+model.9 <- glm(state ~ strain : factor(repetition) + 0, family=binomial(link="logit"), data=Dataset)
+
+SUM2 <- summary(model.2)
+CoeffSUM2 <- SUM2$coefficients    # directly extract the matrix
+
+###########################################################
+### Confidence intervals and probabilities
+###########################################################
+
+IC975  <- CoeffSUM2[,1] + 1.96 * CoeffSUM2[,2]
+IC025  <- CoeffSUM2[,1] - 1.96 * CoeffSUM2[,2]
+
+estim.p   <- exp(CoeffSUM2[,1]) / (1 + exp(CoeffSUM2[,1]))
+IC975.p   <- exp(IC975) / (1 + exp(IC975))
+IC025.p   <- exp(IC025) / (1 + exp(IC025))
+
+results <- data.frame(
+  Strain    = rownames(CoeffSUM2),
+  Estimate  = CoeffSUM2[,1],
+  IC025     = IC025,
+  IC975     = IC975,
+  Prob      = estim.p,
+  Prob025   = IC025.p,
+  Prob975   = IC975.p
+)
+
+print(results)
+
+
+###########################################################
+### Plot
+###########################################################
+
+library(ggplot2)
+
+ggplot(results, aes(x=Strain, y=Prob, fill=Strain)) +
+  geom_bar(stat="identity", width=0.7) +
+  scale_fill_manual(values=c(
+    "strainA43"="darkgoldenrod4",
+    "strainGW" ="cornsilk2",
+    "strainGWc"="burlywood2",
+    "strainGG" ="darkgreen",
+    "strainGGc"="darkkhaki"
+  )) +
+  geom_errorbar(aes(ymin=Prob025, ymax=Prob975), width=0.2) +
+  theme_minimal() +
+  labs(x=NULL, y="Probability",
+       title="Estimated Probabilities with 95% CI") +
+  theme(legend.position="none")
+
+###########################################################
+### Export results
+###########################################################
+
+write.table(results, file="results.csv", sep="\t", row.names=TRUE, quote=TRUE, dec=",")
+
+###########################################################
