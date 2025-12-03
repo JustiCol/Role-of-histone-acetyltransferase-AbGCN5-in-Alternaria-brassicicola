@@ -1,0 +1,159 @@
+#Script to analyze the data obtained on cabbage leaves
+
+setwd("D:/FungiSem2/Articles/GCN5/Choux")
+# Load the dataset
+CHOUs <- read.csv("ChouGcomp.csv", header = TRUE, sep = ";", dec = ",", na.strings = "NA", stringsAsFactors = FALSE)
+
+# Display the data to verify
+print(CHOUs)
+
+# Load necessary libraries
+library(agricolae)
+library(car)
+library(pgirmess)
+library(multcompView)
+#install.packages("ggplot2")
+library(ggplot2)
+library(dplyr)  # For data manipulation
+library(tidyr)  # For data reshaping
+library(patchwork)  # or cowplot
+
+
+# Paired Wilcoxon tests
+wilcox_test1 <- wilcox.test(CHOUs$A43.1, CHOUs$GV.1, paired = TRUE, na.action = na.omit)
+cat("Wilcoxon test between A43.1 and GV.1: p-value =", wilcox_test1$p.value, "\n")
+
+wilcox_test2 <- wilcox.test(CHOUs$A43.1, CHOUs$GVc1.1, paired = TRUE, na.action = na.omit)
+cat("Wilcoxon test between A43.1 and GVc1.1: p-value =", wilcox_test2$p.value, "\n")
+
+wilcox_test3 <- wilcox.test(CHOUs$GV.1, CHOUs$GVc1.1, paired = TRUE, na.action = na.omit)
+cat("Wilcoxon test between GV.1 and GVc1.1: p-value =", wilcox_test3$p.value, "\n")
+
+wilcox_test4 <- wilcox.test(CHOUs$A43.3, CHOUs$GB.3, paired = TRUE, na.action = na.omit)
+cat("Wilcoxon test between A43.3 and GB.3: p-value =", wilcox_test4$p.value, "\n")
+
+wilcox_test5 <- wilcox.test(CHOUs$A43.3, CHOUs$GBc.3, paired = TRUE, na.action = na.omit)
+cat("Wilcoxon test between A43.3 and GBc.3: p-value =", wilcox_test5$p.value, "\n")
+
+wilcox_test6 <- wilcox.test(CHOUs$GB.3, CHOUs$GBc.3, paired = TRUE, na.action = na.omit)
+cat("Wilcoxon test between GB.3 and GBc.3: p-value =", wilcox_test6$p.value, "\n")
+
+
+
+# Kruskal-Wallis test to check if "Var" has any effect on A43.1, GV.1, and GVc1.1
+# For each variable separately:
+kruskal_test_A43.1 <- kruskal.test(A43.1 ~ Var, data = CHOUs)
+cat("Kruskal-Wallis test for Var effect on A43.1: p-value =", kruskal_test_A43.1$p.value, "\n") #p-value = 0.9742577 
+
+kruskal_test_GV.1 <- kruskal.test(GV.1 ~ Var, data = CHOUs)
+cat("Kruskal-Wallis test for Var effect on GV.1: p-value =", kruskal_test_GV.1$p.value, "\n") # p-value = 0.06994455 
+
+kruskal_test_GVc1.1 <- kruskal.test(GVc1.1 ~ Var, data = CHOUs)
+cat("Kruskal-Wallis test for Var effect on GVc1.1: p-value =", kruskal_test_GVc1.1$p.value, "\n") #p-value = 0.3433705 
+
+kruskal_test_A43.3 <- kruskal.test(A43.3 ~ Var, data = CHOUs)
+cat("Kruskal-Wallis test for Var effect on A43.3: p-value =", kruskal_test_A43.3$p.value, "\n") #p-value = 0.9180599 
+
+kruskal_test_GB.3 <- kruskal.test(GB.3 ~ Var, data = CHOUs)
+cat("Kruskal-Wallis test for Var effect on GB.3: p-value =", kruskal_test_GB.3$p.value, "\n") #p-value = 0.2832786 
+
+kruskal_test_GBc.3 <- kruskal.test(GBc.3 ~ Var, data = CHOUs)
+cat("Kruskal-Wallis test for Var effect on GBc.3: p-value =", kruskal_test_GBc.3$p.value, "\n") #p-value = 0.000389986 
+
+# Post-hoc Dunn's test for GBc.3 after Kruskal-Wallis
+library(FSA) # Install if not already installed
+dunn_test_GBc.3 <- dunnTest(GBc.3 ~ Var, data = CHOUs, method = "bonferroni")
+print(dunn_test_GBc.3)
+
+# Assuming CHOUs is your data frame
+
+# Reshape the data to long format for easier processing
+CHOUs_long <- CHOUs %>%
+  pivot_longer(cols = starts_with("A") | starts_with("G"), 
+               names_to = "Condition", 
+               values_to = "Value")
+head(CHOUs_long)
+
+# Pooling A43.1 and A43.3 into a new condition "A43_combined"
+#CHOUs_long <- CHOUs_long %>%
+#  mutate(Condition = ifelse(Condition %in% c("A43.1", "A43.3"), "A43_combined", Condition))
+# Create a new grouping variable for paired conditions
+CHOUs_long <- CHOUs_long %>%
+  mutate(Group = case_when(
+    Condition %in% c("A43.1", "GV.1", "GVc1.1") ~ "Group 1",
+    Condition %in% c("A43.3", "GB.3", "GBc.3") ~ "Group 2",
+    TRUE ~ "Other"
+  ))
+
+# Calculate means and standard errors for each group
+overall_stats <- CHOUs_long %>%
+  group_by(Group, Condition) %>%
+  summarise(
+    mean_Value = mean(Value, na.rm = TRUE),
+    SE_Value = sd(Value, na.rm = TRUE) / sqrt(n()), # Calculate standard error
+    .groups = 'drop'
+  )
+
+
+# Display the overall statistics
+print(overall_stats)
+
+
+
+
+# Bar plot with facets for each group
+ggplot(overall_stats, aes(x = Condition, y = mean_Value, fill = Condition)) +
+  geom_bar(stat = "identity", position = position_dodge(), width = 0.7) +
+  geom_errorbar(aes(ymin = mean_Value - SE_Value, ymax = mean_Value + SE_Value), 
+                width = 0.1, position = position_dodge(0.7)) +
+  labs(
+    title = " ",
+    x = " ",  
+    y = "Necrosis size (in pixels)", 
+    fill = "Condition"               
+  ) +
+  scale_x_discrete(labels = c("A43.1" = "A43",
+                              "GV.1" = "Gcn5.G",
+                              "GVc1.1" = "Gcn5.Gc",
+                              "A43.3" = "A43",
+                              "GB.3" = "Gcn5.W",
+                              "GBc.3" = "Gcn5.Wc")) +  # Add your new labels here
+  scale_fill_manual(values = c("A43.1" = "darkgoldenrod4",
+                               "GV.1" = "darkgreen",
+                               "GVc1.1" = "darkkhaki",
+                               "A43.3" = "darkgoldenrod4",
+                               "GB.3" = "cornsilk2",
+                               "GBc.3" = "burlywood2")) +  # Set your custom colors here
+  facet_wrap(~ Group, scales = "free") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    legend.title = element_text(size = 12),
+    plot.subtitle = element_blank()  # Remove the subtitle
+  )
+
+
+
+
+
+# Calculate mean and standard deviation for each condition grouped by Var
+grouped_stats <- CHOUs_long %>%
+  group_by(Condition, Var) %>%
+  summarise(
+    mean_Value = mean(Value, na.rm = TRUE),
+    SE_Value = sd(Value, na.rm = TRUE) / sqrt(n())
+  )
+
+# Bar plot considering Var for each condition
+ggplot(data = grouped_stats, aes(x = Condition, y = mean_Value, fill = Var)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  geom_errorbar(aes(ymin = mean_Value - SE_Value, ymax = mean_Value + SE_Value), 
+                width = 0.2, 
+                position = position_dodge(0.9)) +
+  labs(title = "Average Values of All Conditions by Var", 
+       y = "Average Value", 
+       x = "Condition") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
